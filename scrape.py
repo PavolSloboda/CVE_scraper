@@ -22,6 +22,7 @@ def _init_args():
     parser =  argparse.ArgumentParser()
     parser.add_argument('-p', '--package',  help='The package to filter the CVEs for')
     parser.add_argument('-v', '--versions', nargs='+', help='The versions to filter the CVEs for (default is to not filter for versions')
+    parser.add_argument('-n', '--no-pull', action='store_true', help='Do not pull the repo (mostly for a debugging speedup or consecutive runs)')
     # TODO: this is objectively wrong and should be fixed
     parser.add_argument('-g', '--git-location', default='/home/psloboda/.CVE_scrape/git', help='The location of the git containing the CVEs')
     parser.add_argument('-u', '--git-url', default='https://github.com/CVEProject/cvelistV5.git', help='The url of the git repository')
@@ -144,7 +145,11 @@ if __name__ == '__main__':
             print(f"And expection occured while trying to read {args.our_components}", file=stderr)
             exit(2)
 
-    refresh_git(args.git_location, args.git_url)
+    if not args.no_pull:
+        if not os.path.exists(args.git_location):
+            print(f"The git location {args.git_location} does not exist, do not run with -n/--no-pull unless you have already cloned the repository", file=stderr)
+            exit(1)
+            refresh_git(args.git_location, args.git_url)
     files = read_repo(args.git_location, packages, args.start_year, args.end_year)
 
     # TODO: this will run the automatic mode which checks all of our components
