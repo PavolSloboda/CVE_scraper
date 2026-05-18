@@ -7,7 +7,7 @@ from cve_scraper.paths import expand_path
 from cve_scraper.repo import read_repo
 
 
-def _load_our_components(path: str) -> list[str]:
+def _load_our_components(path):
     try:
         with open(path, encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
@@ -16,7 +16,20 @@ def _load_our_components(path: str) -> list[str]:
         raise SystemExit(2) from e
 
 
-def main() -> None:
+def _process_cve_files(files, components, version=None):
+    # One JSON load per file; parse each component against that data.
+    # When parse_json is implemented, it may accept all components at once
+    # and walk affected[] a single time per file (cheaper than N parse passes).
+    for file in files:
+        in_json = get_json_from_file(file)
+        if in_json is None:
+            continue
+        # go over very single component and check it
+        for component in components:
+            parse_json(in_json, component, version)
+
+
+def main():
     parser = build_parser()
     args = parser.parse_args()
 
@@ -24,7 +37,7 @@ def main() -> None:
     our_components_path = str(expand_path(args.our_components))
 
     if args.automatic_mode:
-        packages = _load_our_components(our_components_path)
+        components = _load_our_components(our_components_path)
     else:
         if args.package is None:
             print(
@@ -33,10 +46,7 @@ def main() -> None:
             )
             parser.print_help()
             raise SystemExit(1)
-        else:
-            packages = [args.package]
-    else:
-        packages = _load_our_components(our_components_path)
+        components = [args.package]
 
     if not args.no_pull:
         refresh_git(git_location, args.git_url)
@@ -48,34 +58,12 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    files = read_repo(git_location, packages, args.start_year, args.end_year)
+    # grep union of all component names once (auto) or the single -p name (manual)
+    files = read_repo(git_location, components, args.start_year, args.end_year)
 
     # TODO: this will run the automatic mode which checks all of our components
-    if args.automatic_mode:
-        try:
-            f = open(our_components_path, "r")
-            our_components = f.read()
-        except Exception as e:
-            print(
-                f"Hit an exception while trying to read {our_components_path}: {e}",
-                file=stderr,
-            )
-            raise SystemExit(2) from e
-        our_component_list = our_components.split("\n")
-        # go over very single component and check it
-        # TODO: no need to itterate over every file for every component, this is redundant
-        # also TODO: get rid of the code duplication
-        for component in our_component_list:
-            # skip any empty lines
-            if component != "":
-                print(component)
-                for file in files:
-                    in_json = get_json_from_file(file)
-                    parse_json(in_json, component)
-    else:
-        for file in files:
-            in_json = get_json_from_file(file)
-            parse_json(in_json, args.package, args.version)
+    version = None if args.automatic_mode else args.version
+    _process_cve_files(files, components, version)
 
 
 if __name__ == "__main__":

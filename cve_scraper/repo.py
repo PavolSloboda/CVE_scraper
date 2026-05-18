@@ -39,7 +39,6 @@ def read_repo(git_location, packages, start_year=None, end_year=None):
         if end_year and int(CVE_dir) > end_year:
             continue
 
-        year_dir = os.path.join(cves_root, cve_dir)
-        files.extend(get_files_with_match(year_dir, packages))
+        files += get_files_with_match(f"{git_location}/cves/{CVE_dir}", packages)
 
     return files
