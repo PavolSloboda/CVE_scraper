@@ -1,8 +1,15 @@
 """Orchestrate git sync, file discovery, parsing, and printing."""
 
+from pathlib import Path
 from sys import stderr
 
+from cve_scraper.auto_run import run_automatic_report
 from cve_scraper.cli import build_parser
+from cve_scraper.git_ops import (
+    filter_files_to_git_changes,
+    get_changed_cve_files,
+    get_head_revision,
+)
 from cve_scraper.git_sync import refresh_git
 from cve_scraper.output import format_group_heading, print_component_report, print_manual_report
 from cve_scraper.parse import get_json_from_file, parse_json
@@ -59,7 +66,8 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
 
-    git_location = str(expand_path(args.git_location))
+    git_location = expand_path(args.git_location)
+    git_location_str = str(git_location)
     our_components_path = str(expand_path(args.our_components))
 
     if args.automatic_mode:
@@ -75,36 +83,50 @@ def main():
         components = [args.package]
 
     if not args.no_pull:
-        refresh_git(git_location, args.git_url)
-    elif not expand_path(git_location).exists():
+        refresh_git(git_location_str, args.git_url)
+    elif not git_location.exists():
         print(
-            f"The git location {git_location} does not exist, do not run with -n/--no-pull "
+            f"The git location {git_location_str} does not exist, do not run with -n/--no-pull "
             "unless you have already cloned the repository",
             file=stderr,
         )
         raise SystemExit(1)
 
     # grep union of all component names once (auto) or the single -p name (manual)
-    files = read_repo(git_location, components, args.start_year, args.end_year)
-
-    # TODO: this will run the automatic mode which checks all of our components
-    version = None if args.automatic_mode else args.version
-    matches = _process_cve_files(files, components, version)
+    candidate_files = read_repo(
+        git_location_str, components, args.start_year, args.end_year
+    )
 
     if args.automatic_mode:
-        for component in components:
-            query = _query_for_component(component)
-            results = matches.get(component, [])
-            print_component_report(
-                _display_label_for_component(component),
-                results,
-                query.mode,
-            )
-    else:
-        query = build_manual_query(args.package, args.version)
-        heading = format_group_heading(args.package, args.version)
-        results = matches.get(args.package, [])
-        print_manual_report(heading, results, query.mode)
+        from cve_scraper.auto_state import load_auto_state
+
+        state = load_auto_state()
+        changed_files = get_changed_cve_files(
+            git_location_str, state.get("last_git_revision")
+        )
+        files = filter_files_to_git_changes(candidate_files, changed_files)
+        version = None
+        matches = _process_cve_files(files, components, version)
+        head_revision = get_head_revision(git_location_str)
+        run_automatic_report(
+            git_location=git_location,
+            components=components,
+            matches=matches,
+            heading_for_component=_display_label_for_component,
+            diff_file=args.diff_file,
+            keep_diff=args.keep_diff,
+            head_revision=head_revision,
+        )
+        return
+
+    files = candidate_files
+    version = args.version
+    matches = _process_cve_files(files, components, version)
+
+    query = build_manual_query(args.package, args.version)
+    heading = format_group_heading(args.package, args.version)
+    results = matches.get(args.package, [])
+    print_manual_report(heading, results, query.mode)
 
 
 if __name__ == "__main__":

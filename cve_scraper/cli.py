@@ -65,5 +65,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=str(DEFAULT_OUR_COMPONENTS),
         help="File specifying all of our components",
     )
+    parser.add_argument(
+        "-d",
+        "--diff-file",
+        default="last.diff",
+        help="Automatic mode: report path relative to -g (default: last.diff)",
+    )
+    parser.add_argument(
+        "-k",
+        "--keep-diff",
+        action="store_true",
+        help="Automatic mode: archive previous diff under <git-location>/old/ before overwrite",
+    )
 
     return parser

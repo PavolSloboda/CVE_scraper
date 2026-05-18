@@ -64,3 +64,36 @@ def print_manual_report(heading, parse_results, query_mode):
 
 def print_component_report(heading, parse_results, query_mode):
     print_manual_report(heading, parse_results, query_mode)
+
+
+def format_fix_groups(fix_groups: dict[str, set[str]]) -> list[str]:
+    lines = []
+    for fix_version in sorted(fix_groups, key=version_sort_key):
+        lines.append(f"  {fix_version}:")
+        for cve_id in sorted(fix_groups[fix_version]):
+            lines.append(f"    {cve_id}")
+    return lines
+
+
+def format_finds_map(
+    finds: dict[str, dict[str, list[str]]],
+    heading_for_component,
+) -> str:
+    lines = []
+    for component in sorted(finds):
+        fix_groups = finds[component]
+        if not fix_groups:
+            continue
+        lines.append(heading_for_component(component))
+        grouped = {fix: set(cves) for fix, cves in fix_groups.items()}
+        lines.extend(format_fix_groups(grouped))
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def format_new_finds_diff(
+    new_finds: dict[str, dict[str, list[str]]],
+    heading_for_component,
+) -> str:
+    if not new_finds:
+        return "(no new CVEs since last automatic run.)\n"
+    return format_finds_map(new_finds, heading_for_component)
