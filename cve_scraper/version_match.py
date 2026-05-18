@@ -205,53 +205,77 @@ def _version_entry_matches_fix(entry: dict, fix_version: tuple[int, ...]) -> boo
     return False
 
 
-# Substrings that indicate a product entry is not the database server itself.
-_NON_DATABASE_MARKERS = (
-    "node module",
-    "node.js",
-    "apb",
-    "openshift",
-    "ansible",
-    "connector",
-    "docker",
-    "helm",
-    "chart",
-    "binding",
-    "mariadb-apb",
-)
+_INVALID_IDENTIFIERS = frozenset({"", "n/a", "na", "unknown"})
+
+
+def normalize_identifier(name: str) -> str | None:
+    # Compare vendor/product names without case, spaces, or punctuation.
+    if not name:
+        return None
+    cleaned = name.strip().lower()
+    if cleaned in _INVALID_IDENTIFIERS:
+        return None
+    normalized = re.sub(r"[^a-z0-9]+", "", cleaned)
+    return normalized or None
+
+
+def _parse_cpe23_vendor_product(cpe: str) -> tuple[str | None, str | None]:
+    # cpe:2.3:part:vendor:product:version:...
+    parts = cpe.strip().split(":")
+    if len(parts) < 5 or parts[0] != "cpe" or parts[1] != "2.3":
+        return None, None
+    vendor = parts[3] if parts[3] not in ("*", "-") else ""
+    product = parts[4] if parts[4] not in ("*", "-") else ""
+    return normalize_identifier(vendor), normalize_identifier(product)
+
+
+def _parse_purl_identifier(package_url: str) -> str | None:
+    # pkg:type/namespace/name@version or pkg:type/name@version
+    match = re.match(
+        r"pkg:[^/]+/(?:[^/@]+/)*([^/@]+)(?:@|$)",
+        package_url.strip(),
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return normalize_identifier(match.group(1))
+
+
+def iter_product_identifiers(affected: dict):
+    """Yield normalized names from structured CVE affected fields (not free-text grep)."""
+    for field in ("vendor", "product", "packageName"):
+        normalized = normalize_identifier(str(affected.get(field) or ""))
+        if normalized:
+            yield normalized
+
+    package_url = affected.get("packageURL") or affected.get("packageUrl")
+    if package_url:
+        purl_name = _parse_purl_identifier(str(package_url))
+        if purl_name:
+            yield purl_name
+
+    for cpe in affected.get("cpes") or []:
+        cpe_vendor, cpe_product = _parse_cpe23_vendor_product(str(cpe))
+        if cpe_vendor:
+            yield cpe_vendor
+        if cpe_product:
+            yield cpe_product
 
 
 def product_matches_target(affected: dict, target: str) -> bool:
-    # MariaDB: strict; other products: substring match on vendor/product.
-    product = (affected.get("product") or "").lower().strip()
-    vendor = (affected.get("vendor") or "").lower().strip()
-    if product in ("n/a", "") and vendor in ("n/a", ""):
+    # Match -p against vendor, product, packageName, CPE, or PURL — exact token after normalize.
+    target_norm = normalize_identifier(target)
+    if not target_norm:
         return False
-
-    haystack = f"{vendor} {product}"
-    if any(marker in haystack for marker in _NON_DATABASE_MARKERS):
-        return False
-
-    for cpe in affected.get("cpes") or []:
-        cpe_lower = cpe.lower()
-        if any(marker in cpe_lower for marker in ("node.js", "apb", "node_module")):
-            return False
-
-    if target == "mariadb":
-        if product in ("mariadb", "server") and (
-            "mariadb" in vendor or vendor in ("n/a", "")
-        ):
-            return True
-        return vendor == "mariadb" and product == "mariadb"
-
-    return target in product or target in vendor
+    return target_norm in set(iter_product_identifiers(affected))
 
 
-def extract_fix_labels_from_descriptions(
-    data: dict, stream: tuple[int, ...]
-) -> set[str]:
+def extract_fix_labels_from_descriptions(data: dict, query: MatchQuery) -> set[str]:
     # Fallback when version[] lacks lessThan, e.g. "before 11.8.6" in prose.
-    stream_re = r"\.".join(str(part) for part in stream)
+    if query.stream is None:
+        return set()
+    stream_re = r"\.".join(str(part) for part in query.stream)
+    product_re = re.escape(query.product)
     labels: set[str] = set()
     containers = data.get("containers") or {}
     texts = []
@@ -260,7 +284,7 @@ def extract_fix_labels_from_descriptions(
     patterns = (
         rf"\b{stream_re}\.x\b.*?\bbefore\s+({stream_re}\.\d+)",
         rf"\bbefore\s+({stream_re}\.\d+)",
-        rf"\bfixed in\s+[Mm]ariaDB\s+({stream_re}\.\d+)",
+        rf"\bfixed in\s+{product_re}\s+({stream_re}\.\d+)",
     )
     for text in texts:
         for pattern in patterns:

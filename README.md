@@ -127,7 +127,7 @@ These are constraints of the current design, not a roadmap:
 
 - **Grep pre-filter** — Candidate files are chosen by searching raw JSON text for the product/component name. That is fast but not semantically exact; parsing still filters, but grep must see the name somewhere in the file.
 - **CVE record quality** — Vendors use different JSON shapes (`lessThan`, `>= x, < y`, bare `version`, descriptions only). Fix versions are inferred from those fields and English description patterns; records without a fix bound appear under `unknown`.
-- **Product matching** — MariaDB is matched strictly (database / `server` product, not node modules, APB images, etc.). Other products use a simpler name/vendor substring match and may need tighter rules later.
+- **Product matching** — `-p` must match a normalized **vendor**, **product**, **packageName**, **CPE** vendor/product, or **PURL** name from the CVE record (not substring search inside long product titles). Use the name that appears in the JSON/CPE (e.g. `postgresql`, not a distro package alias).
 - **Version heuristics** — `-v` with three numeric segments is treated as a fix query; one- or two-part values are stream queries. Values like `11.8.0` are fix queries, not stream.
 - **Scope** — Manual mode: one `-p` per run. Automatic mode runs the same full grep-and-parse pass for every line in `our_components` each time.
 - **Performance** — Full history without `-s`/`-e` walks many years and runs grep per year; first clone and each pull download a large repo.

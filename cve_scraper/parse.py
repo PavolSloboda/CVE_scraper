@@ -70,7 +70,7 @@ def _collect_fix_versions(data, query) -> set[str]:
     for affected in _iter_affected_records(data):
         labels |= extract_fix_versions(affected, query)
     if query.mode == VersionMode.STREAM and query.stream is not None:
-        labels |= extract_fix_labels_from_descriptions(data, query.stream)
+        labels |= extract_fix_labels_from_descriptions(data, query)
     return labels
 
 
