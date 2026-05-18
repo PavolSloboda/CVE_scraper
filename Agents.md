@@ -19,3 +19,8 @@
 * **File System Efficiency:** When searching or parsing the CVE repository, use efficient file reading methods. Avoid loading the entire massive dataset into memory all at once; stream files or process them in chunks where possible.
 * **Offline/Dev Mode:** When writing the code, ensure the `git pull` functionality is modular. It is highly recommended to implement a `--no-pull` flag or an offline development mode so we can test the parsing logic locally without triggering the network request.
 * **Robust Error Handling:** File structures in large repos can be inconsistent. Handle missing files, unexpected JSON/text structures, or corrupted data gracefully without crashing the main parsing loop.
+
+## 5. Code Comments
+* **Do not remove existing comments** unless they are a `TODO:` comment that has been fully addressed by the change.
+* **If you want to remove any other comment** (or rewrite comment text), **confirm with me first**.
+* When refactoring or splitting files, **move comments with the code they describe**; do not drop them for brevity.
