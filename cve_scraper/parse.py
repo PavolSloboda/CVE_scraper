@@ -6,6 +6,7 @@ from cve_scraper.version_match import (
     VersionMode,
     build_manual_query,
     affected_matches_query,
+    extract_fix_labels_from_descriptions,
     extract_fix_versions,
     parse_component_name,
 )
@@ -64,6 +65,8 @@ def _collect_fix_versions(data, query) -> set[str]:
     labels: set[str] = set()
     for affected in _iter_affected_records(data):
         labels |= extract_fix_versions(affected, query)
+    if query.mode == VersionMode.STREAM and query.stream is not None:
+        labels |= extract_fix_labels_from_descriptions(data, query.stream)
     return labels
 
 

@@ -139,10 +139,10 @@ def _range_overlaps_stream(
     stream: tuple[int, ...],
 ) -> bool:
     stream_low, stream_high = _stream_bounds(stream)
+    if upper is None:
+        return lower is not None and _starts_with_stream(lower, stream)
     if lower is None:
         lower = (0,)
-    if upper is None:
-        return _starts_with_stream(lower, stream) or lower <= stream_high
     if not upper_inclusive:
         effective_upper = upper
     else:
@@ -199,6 +199,67 @@ def _version_entry_matches_fix(entry: dict, fix_version: tuple[int, ...]) -> boo
     return False
 
 
+_NON_DATABASE_MARKERS = (
+    "node module",
+    "node.js",
+    "apb",
+    "openshift",
+    "ansible",
+    "connector",
+    "docker",
+    "helm",
+    "chart",
+    "binding",
+    "mariadb-apb",
+)
+
+
+def product_matches_target(affected: dict, target: str) -> bool:
+    product = (affected.get("product") or "").lower().strip()
+    vendor = (affected.get("vendor") or "").lower().strip()
+    if product in ("n/a", "") and vendor in ("n/a", ""):
+        return False
+
+    haystack = f"{vendor} {product}"
+    if any(marker in haystack for marker in _NON_DATABASE_MARKERS):
+        return False
+
+    for cpe in affected.get("cpes") or []:
+        cpe_lower = cpe.lower()
+        if any(marker in cpe_lower for marker in ("node.js", "apb", "node_module")):
+            return False
+
+    if target == "mariadb":
+        if product in ("mariadb", "server") and (
+            "mariadb" in vendor or vendor in ("n/a", "")
+        ):
+            return True
+        return vendor == "mariadb" and product == "mariadb"
+
+    return target in product or target in vendor
+
+
+def extract_fix_labels_from_descriptions(
+    data: dict, stream: tuple[int, ...]
+) -> set[str]:
+    stream_re = r"\.".join(str(part) for part in stream)
+    labels: set[str] = set()
+    containers = data.get("containers") or {}
+    texts = []
+    for description in (containers.get("cna") or {}).get("descriptions") or []:
+        texts.append(description.get("value") or "")
+    patterns = (
+        rf"\b{stream_re}\.x\b.*?\bbefore\s+({stream_re}\.\d+)",
+        rf"\bbefore\s+({stream_re}\.\d+)",
+        rf"\bfixed in\s+[Mm]ariaDB\s+({stream_re}\.\d+)",
+    )
+    for text in texts:
+        for pattern in patterns:
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+                labels.add(match.group(1))
+    return labels
+
+
 def format_version_label(version_tuple: tuple[int, ...]) -> str:
     return ".".join(str(part) for part in version_tuple)
 
@@ -208,6 +269,10 @@ def _fix_label_from_entry(entry: dict) -> str | None:
         return str(entry["lessThan"]).strip()
     if "lessThanOrEqual" in entry:
         return str(entry["lessThanOrEqual"]).strip()
+    version_text = str(entry.get("version", "")).strip()
+    fixed_in = re.search(r"fixed in\s+([\d.]+)", version_text, flags=re.IGNORECASE)
+    if fixed_in:
+        return fixed_in.group(1)
     return None
 
 
@@ -238,10 +303,7 @@ def _collect_any_fix_labels(entry: dict) -> set[str]:
 
 
 def extract_fix_versions(affected: dict, query: MatchQuery) -> set[str]:
-    product = affected.get("product", "")
-    vendor = affected.get("vendor", "")
-    target = query.product
-    if target not in product.lower() and target not in vendor.lower():
+    if not product_matches_target(affected, query.product):
         return set()
 
     versions = affected.get("versions") or []
@@ -276,10 +338,7 @@ def version_sort_key(version_label: str):
 
 
 def affected_matches_query(affected: dict, query: MatchQuery) -> bool:
-    product = affected.get("product", "")
-    vendor = affected.get("vendor", "")
-    target = query.product
-    if target not in product.lower() and target not in vendor.lower():
+    if not product_matches_target(affected, query.product):
         return False
 
     versions = affected.get("versions") or []
