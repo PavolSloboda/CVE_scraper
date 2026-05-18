@@ -1,0 +1,31 @@
+{
+  "dataType": "CVE_RECORD",
+  "cveMetadata": {
+    "cveId": "CVE-TEST-0001",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "product": "MariaDB",
+          "vendor": "MariaDB",
+          "versions": [
+            {
+              "lessThan": "11.8.6",
+              "status": "affected",
+              "version": "11.5.0",
+              "versionType": "semver"
+            }
+          ]
+        }
+      ],
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "Issue before 11.8.6 on MariaDB 11.8.x."
+        }
+      ]
+    }
+  }
+}

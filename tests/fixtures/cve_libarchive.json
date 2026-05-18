@@ -1,0 +1,25 @@
+{
+  "dataType": "CVE_RECORD",
+  "cveMetadata": {
+    "cveId": "CVE-TEST-0004",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "product": "libarchive",
+          "vendor": "libarchive",
+          "versions": [
+            {
+              "lessThanOrEqual": "3.7.7",
+              "status": "affected",
+              "version": "0",
+              "versionType": "semver"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

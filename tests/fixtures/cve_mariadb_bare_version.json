@@ -1,0 +1,23 @@
+{
+  "dataType": "CVE_RECORD",
+  "cveMetadata": {
+    "cveId": "CVE-TEST-0003",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "vendor": "MariaDB",
+          "product": "MariaDB",
+          "versions": [
+            {
+              "version": "11.8.3",
+              "status": "affected"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

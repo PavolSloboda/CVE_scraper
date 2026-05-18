@@ -1,0 +1,23 @@
+{
+  "dataType": "CVE_RECORD",
+  "cveMetadata": {
+    "cveId": "CVE-TEST-9999",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "product": "otherpkg",
+          "vendor": "otherpkg",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

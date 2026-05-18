@@ -205,7 +205,8 @@ tests/
 ## Tests
 
 ```bash
-python3 -m unittest tests.test_version_match -v
+cd /path/to/CVE_scraper
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-Uses local `~/.CVE_scrape/git` when present.
+Fixture-based tests run offline. A few tests optionally use `~/.CVE_scrape/git` when present.

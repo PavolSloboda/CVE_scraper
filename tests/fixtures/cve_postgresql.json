@@ -1,0 +1,25 @@
+{
+  "dataType": "CVE_RECORD",
+  "cveMetadata": {
+    "cveId": "CVE-TEST-0005",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "product": "PostgreSQL",
+          "vendor": "n/a",
+          "versions": [
+            {
+              "lessThan": "18.2",
+              "status": "affected",
+              "version": "18",
+              "versionType": "rpm"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "dataType": "CVE_RECORD",
+  "cveMetadata": {
+    "cveId": "CVE-TEST-0006",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "product": "widgets",
+          "vendor": "widgets",
+          "versions": [
+            {
+              "version": ">= 2.3.0, < 2.3.4",
+              "status": "affected"
+            }
+          ]
+        }
+      ],
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "widgets 2.x before 2.3.4 allows remote code execution."
+        }
+      ]
+    }
+  }
+}
