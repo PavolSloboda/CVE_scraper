@@ -1,12 +1,20 @@
 import json
+from dataclasses import dataclass
 from sys import stderr
 
 from cve_scraper.version_match import (
-    MatchQuery,
+    VersionMode,
     build_manual_query,
     affected_matches_query,
+    extract_fix_versions,
     parse_component_name,
 )
+
+
+@dataclass(frozen=True)
+class ParseResult:
+    cve_id: str
+    fix_versions: tuple[str, ...]
 
 
 def get_json_from_file(file):
@@ -39,21 +47,37 @@ def _cve_id_from_record(data) -> str | None:
     return data.get("id")
 
 
-def _resolve_query(component_or_package, version=None) -> MatchQuery:
+def _resolve_query(component_or_package, version=None):
     if version is None:
         return parse_component_name(component_or_package)
     return build_manual_query(component_or_package, version)
 
 
-def cve_matches_query(data, query: MatchQuery) -> bool:
+def cve_matches_query(data, query) -> bool:
     for affected in _iter_affected_records(data):
         if affected_matches_query(affected, query):
             return True
     return False
 
 
+def _collect_fix_versions(data, query) -> set[str]:
+    labels: set[str] = set()
+    for affected in _iter_affected_records(data):
+        labels |= extract_fix_versions(affected, query)
+    return labels
+
+
 def parse_json(data, component_or_package, version=None):
     query = _resolve_query(component_or_package, version)
     if not cve_matches_query(data, query):
         return None
-    return _cve_id_from_record(data)
+
+    cve_id = _cve_id_from_record(data)
+    if cve_id is None:
+        return None
+
+    fix_versions = _collect_fix_versions(data, query)
+    if query.mode == VersionMode.STREAM and not fix_versions:
+        fix_versions = {"unknown"}
+
+    return ParseResult(cve_id=cve_id, fix_versions=tuple(sorted(fix_versions)))

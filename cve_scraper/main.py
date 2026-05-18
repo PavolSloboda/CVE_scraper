@@ -6,6 +6,11 @@ from cve_scraper.output import format_group_heading, print_component_report, pri
 from cve_scraper.parse import get_json_from_file, parse_json
 from cve_scraper.paths import expand_path
 from cve_scraper.repo import read_repo
+from cve_scraper.version_match import (
+    VersionMode,
+    build_manual_query,
+    parse_component_name,
+)
 
 
 def _load_our_components(path):
@@ -28,10 +33,26 @@ def _process_cve_files(files, components, version=None):
             continue
         # go over very single component and check it
         for component in components:
-            cve_id = parse_json(in_json, component, version)
-            if cve_id:
-                matches.setdefault(component, set()).add(cve_id)
+            result = parse_json(in_json, component, version)
+            if result:
+                matches.setdefault(component, []).append(result)
     return matches
+
+
+def _query_for_component(component, version=None):
+    if version is None:
+        return parse_component_name(component)
+    return build_manual_query(component, version)
+
+
+def _display_label_for_component(component, version=None):
+    query = _query_for_component(component, version)
+    if version is not None:
+        return format_group_heading(component, version)
+    if query.mode == VersionMode.STREAM and query.stream is not None:
+        stream_label = ".".join(str(part) for part in query.stream)
+        return format_group_heading(query.product, stream_label)
+    return f"{component}:"
 
 
 def main():
@@ -72,10 +93,18 @@ def main():
 
     if args.automatic_mode:
         for component in components:
-            print_component_report(component, matches.get(component, set()))
+            query = _query_for_component(component)
+            results = matches.get(component, [])
+            print_component_report(
+                _display_label_for_component(component),
+                results,
+                query.mode,
+            )
     else:
+        query = build_manual_query(args.package, args.version)
         heading = format_group_heading(args.package, args.version)
-        print_manual_report({heading: matches.get(args.package, set())})
+        results = matches.get(args.package, [])
+        print_manual_report(heading, results, query.mode)
 
 
 if __name__ == "__main__":
