@@ -1,3 +1,5 @@
+"""Clone or pull the cvelistV5 git repository."""
+
 import os
 
 import git

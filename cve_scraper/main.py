@@ -1,3 +1,5 @@
+"""Orchestrate git sync, file discovery, parsing, and printing."""
+
 from sys import stderr
 
 from cve_scraper.cli import build_parser
@@ -23,9 +25,7 @@ def _load_our_components(path):
 
 
 def _process_cve_files(files, components, version=None):
-    # One JSON load per file; parse each component against that data.
-    # When parse_json is implemented, it may accept all components at once
-    # and walk affected[] a single time per file (cheaper than N parse passes).
+    # One JSON load per file; each component checked against the same parsed record.
     matches = {}
     for file in files:
         in_json = get_json_from_file(file)

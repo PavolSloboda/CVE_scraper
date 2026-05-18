@@ -1,3 +1,5 @@
+"""Map CLI/component names to queries; match CVE affected[] version data."""
+
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -13,11 +15,12 @@ class VersionMode(Enum):
 class MatchQuery:
     product: str
     mode: VersionMode
-    stream: tuple[int, ...] | None = None
-    fix_version: tuple[int, ...] | None = None
+    stream: tuple[int, ...] | None = None  # e.g. (11, 8) for 11.8.x
+    fix_version: tuple[int, ...] | None = None  # e.g. (11, 8, 6) for fixed-in query
 
 
 def parse_version_tuple(version: str) -> tuple[int, ...] | None:
+    # Numeric tuple for comparisons; returns None for n/a, all, unparseable text.
     if not version or version.lower() in ("n/a", "all", "unknown"):
         return None
     parts: list[int] = []
@@ -35,6 +38,7 @@ def parse_version_tuple(version: str) -> tuple[int, ...] | None:
 
 
 def parse_component_name(component: str) -> MatchQuery:
+    # our_components line, e.g. mariadb11.8 -> product mariadb, stream 11.8.
     match = re.match(r"^([a-zA-Z_]+)([\d.]+)?$", component.strip())
     if not match:
         return MatchQuery(product=component.lower(), mode=VersionMode.ANY)
@@ -50,6 +54,7 @@ def parse_component_name(component: str) -> MatchQuery:
 
 
 def parse_manual_version(version: str) -> tuple[VersionMode, tuple[int, ...] | None]:
+    # Three-part -v is a fix query; one/two-part is a stream; all/* skips version filter.
     normalized = version.strip().lower()
     if normalized in ("all", "*"):
         return VersionMode.ANY, None
@@ -139,6 +144,7 @@ def _range_overlaps_stream(
     stream: tuple[int, ...],
 ) -> bool:
     stream_low, stream_high = _stream_bounds(stream)
+    # Open-ended range: only the stream branch (not older lines like 10.6.x for 11.8).
     if upper is None:
         return lower is not None and _starts_with_stream(lower, stream)
     if lower is None:
@@ -199,6 +205,7 @@ def _version_entry_matches_fix(entry: dict, fix_version: tuple[int, ...]) -> boo
     return False
 
 
+# Substrings that indicate a product entry is not the database server itself.
 _NON_DATABASE_MARKERS = (
     "node module",
     "node.js",
@@ -215,6 +222,7 @@ _NON_DATABASE_MARKERS = (
 
 
 def product_matches_target(affected: dict, target: str) -> bool:
+    # MariaDB: strict; other products: substring match on vendor/product.
     product = (affected.get("product") or "").lower().strip()
     vendor = (affected.get("vendor") or "").lower().strip()
     if product in ("n/a", "") and vendor in ("n/a", ""):
@@ -242,6 +250,7 @@ def product_matches_target(affected: dict, target: str) -> bool:
 def extract_fix_labels_from_descriptions(
     data: dict, stream: tuple[int, ...]
 ) -> set[str]:
+    # Fallback when version[] lacks lessThan, e.g. "before 11.8.6" in prose.
     stream_re = r"\.".join(str(part) for part in stream)
     labels: set[str] = set()
     containers = data.get("containers") or {}
@@ -277,6 +286,7 @@ def _fix_label_from_entry(entry: dict) -> str | None:
 
 
 def _collect_stream_fix_labels(entry: dict, stream: tuple[int, ...]) -> set[str]:
+    # Fix version = exclusive upper bound on the stream (lessThan on 11.8.x).
     if entry.get("status", "affected") != "affected":
         return set()
     if not _version_entry_matches_stream(entry, stream):

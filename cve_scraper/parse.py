@@ -1,3 +1,5 @@
+"""Load CVE JSON records and test them against a product/version query."""
+
 import json
 from dataclasses import dataclass
 from sys import stderr
@@ -15,7 +17,7 @@ from cve_scraper.version_match import (
 @dataclass(frozen=True)
 class ParseResult:
     cve_id: str
-    fix_versions: tuple[str, ...]
+    fix_versions: tuple[str, ...]  # bucket keys for stream/any output; empty for non-matches
 
 
 def get_json_from_file(file):
@@ -31,6 +33,7 @@ def get_json_from_file(file):
 
 
 def _iter_affected_records(data):
+    # CNA first, then each ADP enrichment block.
     containers = data.get("containers") or {}
     cna = containers.get("cna") or {}
     for affected in cna.get("affected") or []:
@@ -49,6 +52,7 @@ def _cve_id_from_record(data) -> str | None:
 
 
 def _resolve_query(component_or_package, version=None):
+    # Automatic mode: "mariadb11.8" lines; manual mode: -p plus -v.
     if version is None:
         return parse_component_name(component_or_package)
     return build_manual_query(component_or_package, version)
@@ -80,6 +84,7 @@ def parse_json(data, component_or_package, version=None):
         return None
 
     fix_versions = _collect_fix_versions(data, query)
+    # Stream query with no inferable fix bound (e.g. only "11.8.3" affected).
     if query.mode == VersionMode.STREAM and not fix_versions:
         fix_versions = {"unknown"}
 

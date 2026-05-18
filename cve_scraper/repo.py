@@ -1,3 +1,5 @@
+"""Discover CVE JSON files via grep (coarse pre-filter)."""
+
 import os
 import subprocess
 from sys import stderr
@@ -23,8 +25,8 @@ def get_files_with_match(directory: str, packages: list[str]):
     return iter(found.splitlines())
 
 
-# this will read the repository and return it as json
 def read_repo(git_location, packages, start_year=None, end_year=None):
+    # Walk cves/<year>/ and return JSON file paths that grep matched.
     CVE_dirs = os.listdir(f"{git_location}/cves")
     files = []
 

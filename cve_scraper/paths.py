@@ -1,7 +1,9 @@
+"""Default paths under ~/.CVE_scrape (or CVE_SCRAPE_HOME)."""
+
 import os
 from pathlib import Path
 
-# Defaults live under ~/.CVE_scrape (override base with CVE_SCRAPE_HOME).
+# Override base directory for all defaults below.
 CVE_SCRAPE_HOME = Path(
     os.environ.get("CVE_SCRAPE_HOME", Path.home() / ".CVE_scrape")
 ).expanduser()

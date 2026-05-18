@@ -1,3 +1,5 @@
+"""Format CVE match results for terminal output."""
+
 from cve_scraper.version_match import VersionMode, version_sort_key
 
 
@@ -47,6 +49,7 @@ def print_flat_cves(heading, cve_ids):
 
 
 def print_manual_report(heading, parse_results, query_mode):
+    # FIX: flat list; STREAM/ANY: group CVEs under inferred fix versions.
     if query_mode == VersionMode.FIX:
         cve_ids = {result.cve_id for result in parse_results}
         print_flat_cves(heading, cve_ids)

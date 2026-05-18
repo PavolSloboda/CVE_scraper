@@ -1,3 +1,5 @@
+"""Command-line argument definitions."""
+
 import argparse
 
 from cve_scraper.paths import (
