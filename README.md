@@ -33,7 +33,7 @@ cp examples/our_components ~/.CVE_scrape/our_components
 
 ### Sample `our_components`
 
-Each line is `product` + optional **stream** suffix (no separator), e.g. `mariadb11.8` → MariaDB on the 11.8 line:
+Each line is `product` + optional **stream** suffix (no separator). Hyphens are allowed in the product (`spring-boot2.3`). Names like `log4j` are treated as a product with no stream suffix. Example: `mariadb11.8` → grep `mariadb`, match MariaDB on the 11.8 line:
 
 ```
 mariadb11.8
@@ -172,7 +172,7 @@ For a user systemd timer instead of cron, create a unit that runs the same comma
 
 These are constraints of the current design, not a roadmap:
 
-- **Grep pre-filter** — Candidate files are chosen by searching raw JSON text for the product/component name. That is fast but not semantically exact; parsing still filters, but grep must see the name somewhere in the file.
+- **Grep pre-filter** — Automatic mode greps for the **product** name (`mariadb` from `mariadb11.8`), not the full `our_components` line. Uses fixed-string, case-insensitive whole-word grep (`-Fwi`) per product. Very short names (e.g. `go`) can still over-match English words; prefer distinctive product tokens where possible.
 - **CVE record quality** — Vendors use different JSON shapes (`lessThan`, `>= x, < y`, bare `version`, descriptions only). Fix versions are inferred from those fields and English description patterns; records without a fix bound appear under `unknown`.
 - **Product matching** — `-p` must match a normalized **vendor**, **product**, **packageName**, **CPE** vendor/product, or **PURL** name from the CVE record (not substring search inside long product titles). Use the name that appears in the JSON/CPE (e.g. `postgresql`, not a distro package alias).
 - **Version heuristics** — `-v` with three numeric segments is treated as a fix query; one- or two-part values are stream queries. Values like `11.8.0` are fix queries, not stream.

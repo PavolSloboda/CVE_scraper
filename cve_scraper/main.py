@@ -12,7 +12,8 @@ from cve_scraper.git_ops import (
 )
 from cve_scraper.git_sync import refresh_git
 from cve_scraper.output import format_group_heading, print_component_report, print_manual_report
-from cve_scraper.parse import get_json_from_file, parse_json
+from cve_scraper.components import grep_products_from_lines
+from cve_scraper.parse import get_json_from_file, match_components_in_record
 from cve_scraper.paths import expand_path
 from cve_scraper.repo import read_repo
 from cve_scraper.version_match import (
@@ -32,17 +33,17 @@ def _load_our_components(path):
 
 
 def _process_cve_files(files, components, version=None):
-    # One JSON load per file; each component checked against the same parsed record.
-    matches = {}
+    # One JSON load per file; match all components in a single affected[] scan.
+    matches = {component: [] for component in components}
     for file in files:
         in_json = get_json_from_file(file)
         if in_json is None:
             continue
         # go over very single component and check it
-        for component in components:
-            result = parse_json(in_json, component, version)
-            if result:
-                matches.setdefault(component, []).append(result)
+        for component, result in match_components_in_record(
+            in_json, components, version
+        ).items():
+            matches[component].append(result)
     return matches
 
 
@@ -92,9 +93,14 @@ def main():
         )
         raise SystemExit(1)
 
-    # grep union of all component names once (auto) or the single -p name (manual)
+    # Grep uses product names only (mariadb), not combined lines (mariadb11.8).
+    grep_products = (
+        grep_products_from_lines(components)
+        if args.automatic_mode
+        else [args.package.lower()]
+    )
     candidate_files = read_repo(
-        git_location_str, components, args.start_year, args.end_year
+        git_location_str, grep_products, args.start_year, args.end_year
     )
 
     if args.automatic_mode:

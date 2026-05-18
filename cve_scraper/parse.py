@@ -74,6 +74,14 @@ def _collect_fix_versions(data, query) -> set[str]:
     return labels
 
 
+def _build_parse_result(data, query, cve_id: str) -> ParseResult:
+    fix_versions = _collect_fix_versions(data, query)
+    # Stream query with no inferable fix bound (e.g. only "11.8.3" affected).
+    if query.mode == VersionMode.STREAM and not fix_versions:
+        fix_versions = {"unknown"}
+    return ParseResult(cve_id=cve_id, fix_versions=tuple(sorted(fix_versions)))
+
+
 def parse_json(data, component_or_package, version=None):
     query = _resolve_query(component_or_package, version)
     if not cve_matches_query(data, query):
@@ -83,9 +91,25 @@ def parse_json(data, component_or_package, version=None):
     if cve_id is None:
         return None
 
-    fix_versions = _collect_fix_versions(data, query)
-    # Stream query with no inferable fix bound (e.g. only "11.8.3" affected).
-    if query.mode == VersionMode.STREAM and not fix_versions:
-        fix_versions = {"unknown"}
+    return _build_parse_result(data, query, cve_id)
 
-    return ParseResult(cve_id=cve_id, fix_versions=tuple(sorted(fix_versions)))
+
+def match_components_in_record(data, components, version=None):
+    # One pass over affected[]; resolve each component query once per file.
+    queries = {component: _resolve_query(component, version) for component in components}
+    cve_id = _cve_id_from_record(data)
+    if cve_id is None:
+        return {}
+
+    matched = set()
+    for affected in _iter_affected_records(data):
+        for component, query in queries.items():
+            if component in matched:
+                continue
+            if affected_matches_query(affected, query):
+                matched.add(component)
+
+    return {
+        component: _build_parse_result(data, queries[component], cve_id)
+        for component in matched
+    }

@@ -37,20 +37,31 @@ def parse_version_tuple(version: str) -> tuple[int, ...] | None:
     return tuple(parts) if parts else None
 
 
+def split_component_and_stream(component: str) -> tuple[str, str | None]:
+    # Product names may include hyphens (spring-boot). Stream is a trailing x.y[.z].
+    # log4j has no trailing numeric stream; apache-tomcat9.0 -> apache-tomcat + 9.0.
+    text = component.strip()
+    match = re.match(r"^(.+?)(\d[\d.]*)$", text)
+    if not match:
+        return text.lower(), None
+    product = match.group(1).rstrip("-_.")
+    stream_text = match.group(2)
+    if not product:
+        return text.lower(), None
+    return product.lower(), stream_text
+
+
 def parse_component_name(component: str) -> MatchQuery:
     # our_components line, e.g. mariadb11.8 -> product mariadb, stream 11.8.
-    match = re.match(r"^([a-zA-Z_]+)([\d.]+)?$", component.strip())
-    if not match:
-        return MatchQuery(product=component.lower(), mode=VersionMode.ANY)
-    product, stream_text = match.group(1), match.group(2)
+    product, stream_text = split_component_and_stream(component)
     if stream_text:
         stream = parse_version_tuple(stream_text)
         return MatchQuery(
-            product=product.lower(),
+            product=product,
             mode=VersionMode.STREAM,
             stream=stream,
         )
-    return MatchQuery(product=product.lower(), mode=VersionMode.ANY)
+    return MatchQuery(product=product, mode=VersionMode.ANY)
 
 
 def parse_manual_version(version: str) -> tuple[VersionMode, tuple[int, ...] | None]:
@@ -270,25 +281,44 @@ def product_matches_target(affected: dict, target: str) -> bool:
     return target_norm in set(iter_product_identifiers(affected))
 
 
-def extract_fix_labels_from_descriptions(data: dict, query: MatchQuery) -> set[str]:
-    # Fallback when version[] lacks lessThan, e.g. "before 11.8.6" in prose.
+_DESCRIPTION_PATTERN_CACHE: dict[tuple[str, tuple[int, ...]], tuple[re.Pattern[str], ...]] = {}
+
+
+def _description_patterns(query: MatchQuery) -> tuple[re.Pattern[str], ...]:
     if query.stream is None:
-        return set()
+        return ()
+    cache_key = (query.product, query.stream)
+    cached = _DESCRIPTION_PATTERN_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     stream_re = r"\.".join(str(part) for part in query.stream)
     product_re = re.escape(query.product)
+    compiled = (
+        re.compile(
+            rf"\b{stream_re}\.x\b.*?\bbefore\s+({stream_re}\.\d+)",
+            flags=re.IGNORECASE,
+        ),
+        re.compile(rf"\bbefore\s+({stream_re}\.\d+)", flags=re.IGNORECASE),
+        re.compile(
+            rf"\bfixed in\s+{product_re}\s+({stream_re}\.\d+)",
+            flags=re.IGNORECASE,
+        ),
+    )
+    _DESCRIPTION_PATTERN_CACHE[cache_key] = compiled
+    return compiled
+
+
+def extract_fix_labels_from_descriptions(data: dict, query: MatchQuery) -> set[str]:
+    # Fallback when version[] lacks lessThan, e.g. "before 11.8.6" in prose.
+    patterns = _description_patterns(query)
+    if not patterns:
+        return set()
     labels: set[str] = set()
     containers = data.get("containers") or {}
-    texts = []
     for description in (containers.get("cna") or {}).get("descriptions") or []:
-        texts.append(description.get("value") or "")
-    patterns = (
-        rf"\b{stream_re}\.x\b.*?\bbefore\s+({stream_re}\.\d+)",
-        rf"\bbefore\s+({stream_re}\.\d+)",
-        rf"\bfixed in\s+{product_re}\s+({stream_re}\.\d+)",
-    )
-    for text in texts:
+        text = description.get("value") or ""
         for pattern in patterns:
-            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            for match in pattern.finditer(text):
                 labels.add(match.group(1))
     return labels
 

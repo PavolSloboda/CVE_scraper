@@ -4,6 +4,8 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from shutil import which
+from sys import stderr
 
 from cve_scraper.auto_state import diff_finds, load_auto_state, save_auto_state
 from cve_scraper.output import format_new_finds_diff, _group_by_fix_version
@@ -51,6 +53,12 @@ def finds_from_matches(components, matches) -> dict[str, dict[str, list[str]]]:
 
 
 def send_notification(body: str) -> None:
+    if which("notify-send") is None:
+        print(
+            "notify-send not found; skipping desktop notification",
+            file=stderr,
+        )
+        return
     subprocess.run(
         ["notify-send", NOTIFY_HEADER, body],
         check=False,
