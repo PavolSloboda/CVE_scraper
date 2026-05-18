@@ -24,3 +24,4 @@
 * **Do not remove existing comments** unless they are a `TODO:` comment that has been fully addressed by the change.
 * **If you want to remove any other comment** (or rewrite comment text), **confirm with me first**.
 * When refactoring or splitting files, **move comments with the code they describe**; do not drop them for brevity.
+* Any comments I have already deleted are not to be recovered, if I delete the comment it is not meant to be there, the comment rules only apply to you, not me.
