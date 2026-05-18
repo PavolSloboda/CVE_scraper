@@ -2,6 +2,7 @@ from sys import stderr
 
 from cve_scraper.cli import build_parser
 from cve_scraper.git_sync import refresh_git
+from cve_scraper.output import format_group_heading, print_component_report, print_manual_report
 from cve_scraper.parse import get_json_from_file, parse_json
 from cve_scraper.paths import expand_path
 from cve_scraper.repo import read_repo
@@ -20,13 +21,17 @@ def _process_cve_files(files, components, version=None):
     # One JSON load per file; parse each component against that data.
     # When parse_json is implemented, it may accept all components at once
     # and walk affected[] a single time per file (cheaper than N parse passes).
+    matches = {}
     for file in files:
         in_json = get_json_from_file(file)
         if in_json is None:
             continue
         # go over very single component and check it
         for component in components:
-            parse_json(in_json, component, version)
+            cve_id = parse_json(in_json, component, version)
+            if cve_id:
+                matches.setdefault(component, set()).add(cve_id)
+    return matches
 
 
 def main():
@@ -63,7 +68,14 @@ def main():
 
     # TODO: this will run the automatic mode which checks all of our components
     version = None if args.automatic_mode else args.version
-    _process_cve_files(files, components, version)
+    matches = _process_cve_files(files, components, version)
+
+    if args.automatic_mode:
+        for component in components:
+            print_component_report(component, matches.get(component, set()))
+    else:
+        heading = format_group_heading(args.package, args.version)
+        print_manual_report({heading: matches.get(args.package, set())})
 
 
 if __name__ == "__main__":
